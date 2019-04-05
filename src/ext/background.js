@@ -36,8 +36,8 @@ let CONFIG_ID = ACTIVE_CONFIG["id"];
 let DEV = ACTIVE_CONFIG["dev"];
 let CHL_CLEARANCE_COOKIE = ACTIVE_CONFIG["cookies"]["clearance-cookie"];
 let CHL_CAPTCHA_DOMAIN = ACTIVE_CONFIG["captcha-domain"]; // cookies have dots prepended
-let CHL_VERIFICATION_ERROR = ACTIVE_CONFIG["error-codes"]["connection-error"];
-let CHL_CONNECTION_ERROR = ACTIVE_CONFIG["error-codes"]["verify-error"];
+let CHL_VERIFICATION_ERROR = ACTIVE_CONFIG["error-codes"]["verify-error"];
+let CHL_CONNECTION_ERROR = ACTIVE_CONFIG["error-codes"]["connection-error"];
 let COMMITMENTS_KEY = ACTIVE_CONFIG["commitments"];
 let SPEND_MAX = ACTIVE_CONFIG["max-spends"];
 let MAX_TOKENS = ACTIVE_CONFIG["max-tokens"];
@@ -67,6 +67,8 @@ let ISSUE_ACTION_URLS = ACTIVE_CONFIG["issue-action"]["urls"];
 let RELOAD_ON_SIGN = ACTIVE_CONFIG["issue-action"]["sign-reload"];
 let SIGN_RESPONSE_FMT = ACTIVE_CONFIG["issue-action"]["sign-resp-format"];
 let TOKENS_PER_REQUEST = ACTIVE_CONFIG["issue-action"]["tokens-per-request"];
+let OPT_ENDPOINTS = ACTIVE_CONFIG["opt-endpoints"];
+let EMPTY_RESP_HEADERS = ACTIVE_CONFIG["spend-action"]["empty-resp-headers"];
 
 initECSettings(H2C_PARAMS);
 
@@ -168,9 +170,11 @@ function validRedirect(oldUrl, redirectUrl) {
  * @return {boolean}
  */
 function processHeaders(details, url) {
+    const ret = {attempted: false, xhr: false, favicon: false};
     // We're not interested in running this logic for favicons
     if (isFaviconUrl(url.href)) {
-        return false;
+        ret.favicon = true;
+        return ret;
     }
 
     let activated = false;
@@ -195,9 +199,62 @@ function processHeaders(details, url) {
         }
     }
 
-    // If we have tokens to spend, cancel the request and pass execution over to the token handler.
+    if (EMPTY_RESP_HEADERS.includes("direct-request")) {
+        // There is some weirdness with Chrome whereby some resources return empty
+        // responseHeaders but where a spend *should* occur. If this happens then we
+        // send a direct request to an endpoint that determines whether a CAPTCHA
+        // page is shown via XHR.
+        ret.xhr = tryDirectRequest(details, url, ret);
+    }
+
+    // If we have tokens to spend, cancel the request and pass execution over to
+    // the token handler.
+    if (activated) {
+        ret.attempted = decideRedeem(details, url);
+    }
+    return ret;
+}
+
+/**
+ * Try a direct request against a challenge endpoint if the response headers are
+ * empty. This fixes some strange behaviour with CF sites and Chrome.
+ * @param {Object} details
+ * @param {URL} url
+ * @return {boolean} indicates whether an XHR was launched
+ */
+function tryDirectRequest(details, url) {
+    if (details.responseHeaders.length === 0 && SPEND_STATUS_CODE.includes(details.statusCode)) {
+        const xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+            // We return a boolean for testing purposes
+            let xhrRet = false;
+            if (this.readyState === this.HEADERS_RECEIVED) {
+                if (SPEND_STATUS_CODE.includes(xhr.status) && xhr.getResponseHeader(CHL_BYPASS_SUPPORT) === CONFIG_ID) {
+                    // don't return anything here because it is async
+                    decideRedeem(details, url);
+                    xhr.abort();
+                    xhrRet = true;
+                }
+                xhr.abort();
+            }
+            return xhrRet;
+        };
+        xhr.open("GET", url.origin + OPT_ENDPOINTS["challenge"], true);
+        xhr.send();
+        return xhr;
+    }
+    return;
+}
+
+/**
+ * Decides whether to redeem a token for the given URL
+ * @param {Object} details Response details
+ * @param {URL} url URL object for possible redemption
+ * @return {boolean}
+ */
+function decideRedeem(details, url) {
     let attempted = false;
-    if (activated && !spentUrl[url.href]) {
+    if (!spentUrl[url.href]) {
         const count = countStoredTokens();
         if (DO_REDEEM) {
             if (count > 0 && !url.host.includes(CHL_CAPTCHA_DOMAIN)) {
@@ -520,8 +577,8 @@ function setConfig(val) {
     DEV = ACTIVE_CONFIG["dev"];
     CHL_CLEARANCE_COOKIE = ACTIVE_CONFIG["cookies"]["clearance-cookie"];
     CHL_CAPTCHA_DOMAIN = ACTIVE_CONFIG["captcha-domain"]; // cookies have dots prepended
-    CHL_VERIFICATION_ERROR = ACTIVE_CONFIG["error-codes"]["connection-error"];
-    CHL_CONNECTION_ERROR = ACTIVE_CONFIG["error-codes"]["verify-error"];
+    CHL_VERIFICATION_ERROR = ACTIVE_CONFIG["error-codes"]["verify-error"];
+    CHL_CONNECTION_ERROR = ACTIVE_CONFIG["error-codes"]["connection-error"];
     COMMITMENTS_KEY = ACTIVE_CONFIG["commitments"];
     SPEND_MAX = ACTIVE_CONFIG["max-spends"];
     MAX_TOKENS = ACTIVE_CONFIG["max-tokens"];
@@ -550,6 +607,8 @@ function setConfig(val) {
     RELOAD_ON_SIGN = ACTIVE_CONFIG["issue-action"]["sign-reload"];
     SIGN_RESPONSE_FMT = ACTIVE_CONFIG["issue-action"]["sign-resp-format"];
     TOKENS_PER_REQUEST = ACTIVE_CONFIG["issue-action"]["tokens-per-request"];
+    OPT_ENDPOINTS = ACTIVE_CONFIG["opt-endpoints"];
+    EMPTY_RESP_HEADERS = ACTIVE_CONFIG["spend-action"]["empty-resp-headers"];
 
     initECSettings(H2C_PARAMS);
     clearCachedCommitments();

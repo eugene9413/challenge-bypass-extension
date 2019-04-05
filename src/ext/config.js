@@ -46,6 +46,7 @@ const exampleConfig = {
         "header-name": "challenge-bypass-token", // name of header for sending redemption token
         "header-host-name": "challenge-bypass-host", // needed for no-reload method
         "header-path-name": "challenge-bypass-path", // needed for no-reload method
+        "empty-resp-headers": [], // if a HTTP response returns with no headers, specify what action to take; default is no action, also support "direct-request"
     },
     "issue-action": {
         "urls": ["<all_urls>"],
@@ -58,9 +59,10 @@ const exampleConfig = {
         "clearance-cookie": "", // name of clearance cookies for checking (cookies that are optionally acquired after redemption occurs)
     },
     "captcha-domain": "", // optional domain for acquiring tokens
+    "opt-endpoints": {}, // optional endpoints for integration-specific operations
     "error-codes": {
-        "verify-error": "5", // error code sent by server for verification error
-        "connection-error": "6", // error code sent by server for connection error
+        "verify-error": "6", // error code sent by server for verification error
+        "connection-error": "5", // error code sent by server for connection error
     }, // generic error codes (can add more)
     "h2c-params": { // parameters for establishing which hash-to-curve setting the client wants to use
         "curve": "p256", // elliptic curve that generated tokens should be mapped to
@@ -83,6 +85,9 @@ cfConfig["issue-action"]["tokens-per-request"] = 30;
 cfConfig.cookies["clearance-cookie"] = "cf_clearance";
 cfConfig["captcha-domain"] = "captcha.website";
 cfConfig["send-h2c-params"] = true;
+cfConfig["opt-endpoints"].challenge = "/cdn-cgi/challenge";
+cfConfig["spend-action"]["empty-resp-headers"] = ["direct-request"];
+cfConfig["max-spends"] = 1; // this used to be 3 but lead to more spends than necessary so I've reduced it to 1 and it doesn't seem to have an impact
 
 // The configuration used by hcaptcha
 const hcConfig = cloneConfig(exampleConfig);
