@@ -226,11 +226,10 @@ function tryDirectRequest(details, url) {
     if (details.responseHeaders.length === 0 && SPEND_STATUS_CODE.includes(details.statusCode)) {
         const xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
-            // We return a boolean for testing purposes
+            // We return a boolean in onreadystatechange for testing purposes
             let xhrRet = false;
             if (this.readyState === this.HEADERS_RECEIVED) {
                 if (SPEND_STATUS_CODE.includes(xhr.status) && xhr.getResponseHeader(CHL_BYPASS_SUPPORT) === CONFIG_ID) {
-                    // don't return anything here because it is async
                     decideRedeem(details, url);
                     xhr.abort();
                     xhrRet = true;
