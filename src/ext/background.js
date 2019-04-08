@@ -199,7 +199,9 @@ function processHeaders(details, url) {
         }
     }
 
-    if (details.responseHeaders.length === 0 && EMPTY_RESP_HEADERS.includes("direct-request")) {
+    if (details.responseHeaders.length === 0
+        && EMPTY_RESP_HEADERS.includes("direct-request")
+        && SPEND_STATUS_CODE.includes(details.statusCode)) {
         // There is some weirdness with Chrome whereby some resources return empty
         // responseHeaders but where a spend *should* occur. If this happens then we
         // send a direct request to an endpoint that determines whether a CAPTCHA
@@ -218,25 +220,22 @@ function processHeaders(details, url) {
  * @return {boolean} indicates whether an XHR was launched
  */
 function tryDirectRequest(details, url) {
-    if (SPEND_STATUS_CODE.includes(details.statusCode)) {
-        const xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function() {
-            // We return a boolean in onreadystatechange for testing purposes
-            let xhrRet = false;
-            if (this.readyState === this.HEADERS_RECEIVED) {
-                if (SPEND_STATUS_CODE.includes(xhr.status) && xhr.getResponseHeader(CHL_BYPASS_SUPPORT) === CONFIG_ID) {
-                    decideRedeem(details, url);
-                    xhrRet = true;
-                }
-                xhr.abort();
+    const xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        // We return a boolean in onreadystatechange for testing purposes
+        let xhrRet = false;
+        if (this.readyState === this.HEADERS_RECEIVED) {
+            if (SPEND_STATUS_CODE.includes(xhr.status) && xhr.getResponseHeader(CHL_BYPASS_SUPPORT) === CONFIG_ID) {
+                decideRedeem(details, url);
+                xhrRet = true;
             }
-            return xhrRet;
-        };
-        xhr.open("GET", url.origin + OPT_ENDPOINTS["challenge"], true);
-        xhr.send();
-        return xhr;
-    }
-    return;
+            xhr.abort();
+        }
+        return xhrRet;
+    };
+    xhr.open("GET", url.origin + OPT_ENDPOINTS["challenge"], true);
+    xhr.send();
+    return xhr;
 }
 
 /**
