@@ -177,7 +177,6 @@ function processHeaders(details, url) {
         return ret;
     }
 
-    let activated = false;
     for (let i = 0; i < details.responseHeaders.length; i++) {
         const header = details.responseHeaders[i];
         if (header.name.toLowerCase() === CHL_BYPASS_RESPONSE) {
@@ -195,11 +194,12 @@ function processHeaders(details, url) {
 
         // correct status code with the right header indicates a bypassable Cloudflare CAPTCHA
         if (isBypassHeader(header) && SPEND_STATUS_CODE.includes(details.statusCode)) {
-            activated = true;
+            ret.attempted = decideRedeem(details, url);
+            break;
         }
     }
 
-    if (EMPTY_RESP_HEADERS.includes("direct-request")) {
+    if (details.responseHeaders.length === 0 && EMPTY_RESP_HEADERS.includes("direct-request")) {
         // There is some weirdness with Chrome whereby some resources return empty
         // responseHeaders but where a spend *should* occur. If this happens then we
         // send a direct request to an endpoint that determines whether a CAPTCHA
@@ -207,11 +207,6 @@ function processHeaders(details, url) {
         ret.xhr = tryDirectRequest(details, url, ret);
     }
 
-    // If we have tokens to spend, cancel the request and pass execution over to
-    // the token handler.
-    if (activated) {
-        ret.attempted = decideRedeem(details, url);
-    }
     return ret;
 }
 
@@ -223,7 +218,7 @@ function processHeaders(details, url) {
  * @return {boolean} indicates whether an XHR was launched
  */
 function tryDirectRequest(details, url) {
-    if (details.responseHeaders.length === 0 && SPEND_STATUS_CODE.includes(details.statusCode)) {
+    if (SPEND_STATUS_CODE.includes(details.statusCode)) {
         const xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
             // We return a boolean in onreadystatechange for testing purposes
@@ -231,7 +226,6 @@ function tryDirectRequest(details, url) {
             if (this.readyState === this.HEADERS_RECEIVED) {
                 if (SPEND_STATUS_CODE.includes(xhr.status) && xhr.getResponseHeader(CHL_BYPASS_SUPPORT) === CONFIG_ID) {
                     decideRedeem(details, url);
-                    xhr.abort();
                     xhrRet = true;
                 }
                 xhr.abort();

@@ -61,8 +61,8 @@ const exampleConfig = {
     "captcha-domain": "", // optional domain for acquiring tokens
     "opt-endpoints": {}, // optional endpoints for integration-specific operations
     "error-codes": {
-        "verify-error": "6", // error code sent by server for verification error
         "connection-error": "5", // error code sent by server for connection error
+        "verify-error": "6", // error code sent by server for verification error
     }, // generic error codes (can add more)
     "h2c-params": { // parameters for establishing which hash-to-curve setting the client wants to use
         "curve": "p256", // elliptic curve that generated tokens should be mapped to
